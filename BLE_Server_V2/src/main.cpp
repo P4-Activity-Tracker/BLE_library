@@ -4,10 +4,15 @@
 #include <BLEUtils.h>
 #include <BLEServer.h>
 #include <BLE2902.h>
+#include <esp_bt_main.h>
+#include <esp_bt_device.h>
 
 #define SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define RX_CHARACTERISTIC_UUID "12ee6f51-021d-438f-8094-bf5c5b36eab9"
 #define TX_CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+
+BLEAdvertising *pAdvertising;
+
 
 // See the following for generating UUIDs:
 // https://www.uuidgenerator.net/
@@ -15,6 +20,11 @@
 const char *test[] = {"test1", "test2", "test3", "test4", "test5"};
 int stringIndex = 0;
 
+class MysserverCallbacks: public BLEServerCallbacks {
+	void onConnect (BLEServer* pServer){
+		pAdvertising->start();
+	}
+};
 // MyCallbacks er en form for tilbagekald, der tilknyttes BLE-karakteristik for at informere om begivenheder.
 class MyCallbacks: public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic_RX) { // Callback funktion som gør at der kan læses en værdi som sendes af BLE-client.
@@ -36,12 +46,31 @@ class MyCallbacks: public BLECharacteristicCallbacks {
 BLECharacteristic *pCharacteristic_TX; 
 BLECharacteristic *pCharacteristic_RX;
 
+void printDeviceAddress() {
+ 
+  const uint8_t* point = esp_bt_dev_get_address();
+ 
+  for (int i = 0; i < 6; i++) {
+ 
+    char str[3];
+ 
+    sprintf(str, "%02X", (int)point[i]);
+    Serial.print(str);
+ 
+    if (i < 5){
+      Serial.print(":");
+    }
+ 
+  }
+}
+
 void setup() {
   Serial.begin(115200);
   Serial.println("Starting BLE work!");
 
   BLEDevice::init("ESP32_Master");
   BLEServer *pServer = BLEDevice::createServer();
+  pServer->setCallbacks(new MysserverCallbacks());
   BLEService *pService = pServer->createService(SERVICE_UUID);
   pCharacteristic_TX = pService->createCharacteristic(
                                          TX_CHARACTERISTIC_UUID,
@@ -62,7 +91,7 @@ void setup() {
   pCharacteristic_TX->addDescriptor(new BLE2902());
   pService->start();
   // BLEAdvertising *pAdvertising = pServer->getAdvertising();  // this still is working for backward compatibility
-  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+  pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
   pAdvertising->setScanResponse(true);
   pAdvertising->setMinPreferred(0x06);  // functions that help with iPhone connections issue
@@ -70,12 +99,15 @@ void setup() {
   BLEDevice::startAdvertising();
   Serial.println("Characteristic defined! Now you can read it in your phone!");
 
+  printDeviceAddress();
 }
 
-void loop() {
+
+void loop() {		
   // put your main code to transmit data to client:
   delay(5000);
-  pCharacteristic_TX->setValue(String(stringIndex).c_str());
+  String yougay = "hej lasse " + String (stringIndex);
+  pCharacteristic_TX->setValue(yougay.c_str());
   pCharacteristic_TX->notify();    
   stringIndex++;
 
